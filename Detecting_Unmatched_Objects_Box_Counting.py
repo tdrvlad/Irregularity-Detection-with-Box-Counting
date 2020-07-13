@@ -20,6 +20,83 @@ step = 3
 dimension_map_file = 'Dimension_Map.jpg'
 irregularities_map_file = "Irregularitites_Map.jpg"
 
+def convolution(image, kernel, average=False, verbose=False):
+    if len(image.shape) == 3:
+        print("Found 3 Channels : {}".format(image.shape))
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+        print("Converted to Gray Channel. Size : {}".format(image.shape))
+    else:
+        print("Image Shape : {}".format(image.shape))
+
+    print("Kernel Shape : {}".format(kernel.shape))
+
+    if verbose:
+        plt.imshow(image, cmap='gray')
+        plt.title("Image")
+        plt.show()
+
+    image_row, image_col = image.shape
+    kernel_row, kernel_col = kernel.shape
+
+    output = np.zeros(image.shape)
+
+    pad_height = int((kernel_row - 1) / 2)
+    pad_width = int((kernel_col - 1) / 2)
+
+    padded_image = np.zeros((image_row + (2 * pad_height), image_col + (2 * pad_width)))
+
+    padded_image[pad_height:padded_image.shape[0] - pad_height, pad_width:padded_image.shape[1] - pad_width] = image
+
+    if verbose:
+        plt.imshow(padded_image, cmap='gray')
+        plt.title("Padded Image")
+        plt.show()
+
+    for row in range(image_row):
+        for col in range(image_col):
+            output[row, col] = np.sum(kernel * padded_image[row:row + kernel_row, col:col + kernel_col])
+            if average:
+                output[row, col] /= kernel.shape[0] * kernel.shape[1]
+
+    print("Output Image size : {}".format(output.shape))
+
+    if verbose:
+        plt.imshow(output, cmap='gray')
+        plt.title("Output Image using {}X{} Kernel".format(kernel_row, kernel_col))
+        plt.show()
+
+    return output
+
+
+def extract_edges(image, verbose=False):
+
+    filter = np.array([[-1, 0, 1], [-2, 0, 2], [-1, 0, 1]])
+
+    new_image_x = convolution(image, filter, verbose)
+
+    if verbose:
+        plt.imshow(new_image_x, cmap='gray')
+        plt.title("Horizontal Edge")
+        plt.show()
+
+    new_image_y = convolution(image, np.flip(filter.T, axis=0), verbose)
+
+    if verbose:
+        plt.imshow(new_image_y, cmap='gray')
+        plt.title("Vertical Edge")
+        plt.show()
+
+    gradient_magnitude = np.sqrt(np.square(new_image_x) + np.square(new_image_y))
+
+    gradient_magnitude *= 255.0 / gradient_magnitude.max()
+
+    if verbose:
+        plt.imshow(gradient_magnitude, cmap='gray')
+        plt.title("Gradient Magnitude")
+        plt.show()
+
+    return gradient_magnitude
+
 def read_image_rgb(image_file):
     #Return an height * width matrix of 3 elements (0-256) array for red green and blue proportions
     image_data = cv2.imread(image_file,1)
@@ -234,14 +311,18 @@ def add_selection_to_image(image_file,dimension_map_file,threshold):
 
 
 
-#image_data_grey = read_image_grey(image_file)
+image_data_grey = read_image_grey(image_file)
 
-#box_counting_dimension_map = compute_dimension_map(image_data_grey,patch_size,step,image_processing_threshold)
+image_edges =extract_edges(image_data_grey)
+
+image_save(image_edges, 'Edges.jpg')
+
+box_counting_dimension_map = compute_dimension_map(image_edges,patch_size,step,image_processing_threshold)
 
 
-#irregularities_map = detect_dimension_irregularities(box_counting_dimension_map)
+irregularities_map = detect_dimension_irregularities(box_counting_dimension_map)
 
-#image_save(irregularities_map * 255, irregularities_map_file)
+image_save(irregularities_map * 255, irregularities_map_file)
 
 
 output = add_selection_to_image(image_file, irregularities_map_file, threshold = 255)
